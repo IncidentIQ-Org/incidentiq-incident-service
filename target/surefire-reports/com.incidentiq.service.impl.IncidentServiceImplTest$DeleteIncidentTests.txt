@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.incidentiq.service.impl.IncidentServiceImplTest$DeleteIncidentTests
+-------------------------------------------------------------------------------
+Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.390 s -- in com.incidentiq.service.impl.IncidentServiceImplTest$DeleteIncidentTests

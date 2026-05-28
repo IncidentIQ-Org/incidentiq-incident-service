@@ -1,0 +1,13 @@
+com\incidentiq\controller\IncidentControllerTest$GetIncidentByIdTests.class
+com\incidentiq\controller\IncidentControllerTest$DeleteIncidentTests.class
+com\incidentiq\service\impl\IncidentServiceImplTest.class
+com\incidentiq\service\impl\IncidentServiceImplTest$GetAllIncidentsTests.class
+com\incidentiq\controller\IncidentControllerTest$CreateIncidentTests.class
+com\incidentiq\controller\IncidentControllerTest$UpdateIncidentTests.class
+com\incidentiq\controller\IncidentControllerTest.class
+com\incidentiq\service\impl\IncidentServiceImplTest$DeleteIncidentTests.class
+com\incidentiq\service\impl\IncidentServiceImplTest$CreateIncidentTests.class
+com\incidentiq\service\impl\IncidentServiceImplTest$UpdateIncidentTests.class
+com\incidentiq\IncidentIqApplicationTest.class
+com\incidentiq\service\impl\IncidentServiceImplTest$GetIncidentByIdTests.class
+com\incidentiq\controller\IncidentControllerTest$GetAllIncidentsTests.class
