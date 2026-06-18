@@ -81,7 +81,7 @@ class IncidentServiceImplTest {
                 .id(1L)
                 .title("Server Down")
                 .description("Production server not responding")
-                .category(IncidentCategory.INFRA)
+                .category(IncidentCategory.CLOUD)
                 .priority(IncidentPriority.HIGH)
                 .status(IncidentStatus.OPEN)
                 .createdBy(1L)
@@ -104,9 +104,8 @@ class IncidentServiceImplTest {
             CreateIncidentRequest request = CreateIncidentRequest.builder()
                     .title("Server Down")
                     .description("Production server not responding")
-                    .category(IncidentCategory.INFRA)
+                    .category(IncidentCategory.CLOUD)
                     .priority(IncidentPriority.HIGH)
-                    .createdBy(1L)
                     .build();
 
             when(incidentRepository.save(any(Incident.class))).thenReturn(sampleIncident);

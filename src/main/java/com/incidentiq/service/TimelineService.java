@@ -1,29 +1,29 @@
 package com.incidentiq.service;
 
 import com.incidentiq.model.IncidentTimeline;
-import com.incidentiq.repository.TimelineRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-@Service
-@RequiredArgsConstructor
-public class TimelineService {
+/**
+ * Service interface for managing incident timeline events.
+ */
+public interface TimelineService {
 
-    private final TimelineRepository timelineRepository;
+    /**
+     * Logs a timeline event for an incident.
+     *
+     * @param incidentId the incident ID
+     * @param eventType the type of event (CREATED, STATUS_CHANGED, ASSIGNED, etc.)
+     * @param description human-readable description
+     * @param performedBy the user ID who performed the action
+     */
+    void logEvent(Long incidentId, String eventType, String description, Long performedBy);
 
-    public void logEvent(Long incidentId, String eventType, String description, Long performedBy) {
-        IncidentTimeline timeline = IncidentTimeline.builder()
-                .incidentId(incidentId)
-                .eventType(eventType)
-                .description(description)
-                .performedBy(performedBy)
-                .build();
-        timelineRepository.save(timeline);
-    }
-
-    public List<IncidentTimeline> getTimeline(Long incidentId) {
-        return timelineRepository.findByIncidentIdOrderByTimestampAsc(incidentId);
-    }
+    /**
+     * Retrieves all timeline events for an incident.
+     *
+     * @param incidentId the incident ID
+     * @return list of timeline events in chronological order
+     */
+    List<IncidentTimeline> getTimeline(Long incidentId);
 }

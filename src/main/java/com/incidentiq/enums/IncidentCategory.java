@@ -5,12 +5,14 @@ package com.incidentiq.enums;
  */
 public enum IncidentCategory {
 
-    BACKEND("Backend Services"),
-    FRONTEND("Frontend / UI"),
-    INFRA("Infrastructure"),
     DATABASE("Database"),
+    BACKEND("Backend"),
+    FRONTEND("Frontend"),
     NETWORK("Network"),
-    SECURITY("Security");
+    SECURITY("Security"),
+    DEVOPS("DevOps"),
+    CLOUD("Cloud"),
+    APPLICATION_SUPPORT("Application Support");
 
     private final String displayName;
 

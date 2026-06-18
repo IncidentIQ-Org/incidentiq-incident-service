@@ -90,4 +90,39 @@ public class Incident {
     /** Keyword tags for similarity matching (comma-separated) */
     @Column(length = 500)
     private String tags;
+
+    // ── Resolution Fields ───────────────────────────────
+    /** Root cause analysis of the incident */
+    @Column(length = 2000)
+    private String rootCause;
+
+    /** Detailed resolution steps taken */
+    @Column(length = 5000)
+    private String resolutionSteps;
+
+    /** Summary of the resolution */
+    @Column(length = 1000)
+    private String resolutionSummary;
+
+    /** Actual time taken to resolve (in minutes) */
+    @Column
+    private Integer actualResolutionMinutes;
+
+    /** Timestamp when the incident was resolved */
+    @Column
+    private LocalDateTime resolvedAt;
+
+    /** Whether SLA was missed */
+    @Column
+    @Builder.Default
+    private Boolean slaMissed = false;
+
+    /** Whether the 75% SLA warning alert has already been sent (prevents duplicate alerts) */
+    @Column
+    @Builder.Default
+    private Boolean slaAlertSent = false;
+
+    @OneToMany(fetch = FetchType.LAZY)
+    @JoinColumn(name = "incident_id", referencedColumnName = "id", insertable = false, updatable = false)
+    private java.util.List<IncidentAttachment> attachments;
 }

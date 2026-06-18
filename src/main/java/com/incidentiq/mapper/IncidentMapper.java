@@ -27,7 +27,6 @@ public final class IncidentMapper {
                 .category(request.getCategory())
                 .priority(request.getPriority())
                 .status(IncidentStatus.OPEN)
-                .createdBy(request.getCreatedBy())
                 .build();
     }
 
@@ -48,6 +47,25 @@ public final class IncidentMapper {
                 .updatedAt(incident.getUpdatedAt())
                 .dueDate(incident.getDueDate())
                 .slaBreached(incident.getDueDate() != null && incident.getDueDate().isBefore(java.time.LocalDateTime.now()) && incident.getStatus() != com.incidentiq.enums.IncidentStatus.CLOSED)
+                .tags(incident.getTags())
+                .rootCause(incident.getRootCause())
+                .resolutionSteps(incident.getResolutionSteps())
+                .resolutionSummary(incident.getResolutionSummary())
+                .actualResolutionMinutes(incident.getActualResolutionMinutes())
+                .resolvedAt(incident.getResolvedAt())
+                .slaMissed(incident.getSlaMissed())
+                .attachments(incident.getAttachments() != null ? incident.getAttachments().stream()
+                        .map(att -> com.incidentiq.dto.AttachmentDto.builder()
+                                .id(att.getId())
+                                .fileName(att.getFileName())
+                                .fileType(att.getFileType())
+                                .fileSize(att.getFileSize())
+                                .isSafe(att.getIsSafe())
+                                .scanResult(att.getScanResult())
+                                .uploadedBy(att.getUploadedBy())
+                                .uploadedAt(att.getUploadedAt())
+                                .build())
+                        .toList() : java.util.Collections.emptyList())
                 .build();
     }
 

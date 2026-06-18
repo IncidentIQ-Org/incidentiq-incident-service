@@ -10,7 +10,7 @@ spring:
 
   # --- PostgreSQL ---
   datasource:
-    url: jdbc:postgresql://localhost:5432/incidentiq
+    url: jdbc:postgresql://localhost:5432/incidentiq_incidents
     username: postgres
     password: 687898
     driver-class-name: org.postgresql.Driver
@@ -24,6 +24,11 @@ spring:
       hibernate:
         format_sql: true
     open-in-view: false
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 1
 
 # --- Logging ---
 logging:

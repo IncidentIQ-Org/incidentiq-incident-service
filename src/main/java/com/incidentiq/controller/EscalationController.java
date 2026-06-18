@@ -26,9 +26,9 @@ public class EscalationController {
     private final AuthorizationService authorizationService;
 
     @Operation(summary = "Manually escalate an incident",
-               description = "MANAGER or ADMIN can manually escalate any incident to the next escalation level.")
+               description = "Any authenticated user (assignee, manager, or admin) can manually escalate an incident.")
     @PostMapping("/escalate")
-    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Incident> escalate(@Valid @RequestBody EscalationRequest request) {
         Long userId = authorizationService.getCurrentUserId();
         Incident escalated = escalationService.manualEscalate(request.getIncidentId(), userId, request.getReason());

@@ -161,6 +161,23 @@ public class  GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
     }
 
+    @ExceptionHandler(com.incidentiq.exception.AttachmentRejectedException.class)
+    public ResponseEntity<ApiErrorResponse> handleAttachmentRejected(
+            com.incidentiq.exception.AttachmentRejectedException ex, HttpServletRequest request) {
+
+        log.warn("Attachment rejected ({}): {}", ex.getStatus(), ex.getMessage());
+
+        ApiErrorResponse response = ApiErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(ex.getStatus().value())
+                .error(ex.getStatus().getReasonPhrase())
+                .message(ex.getMessage())
+                .path(request.getRequestURI())
+                .build();
+
+        return ResponseEntity.status(ex.getStatus()).body(response);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleGenericException(
             Exception ex, HttpServletRequest request) {

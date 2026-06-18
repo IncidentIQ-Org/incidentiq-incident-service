@@ -1,0 +1,25 @@
+### Maven / build artifacts ###
+target/
+*.jar
+*.war
+!.mvn/wrapper/maven-wrapper.jar
+
+### Logs ###
+logs/
+*.log
+hs_err_pid*.log
+replay_pid*.log
+
+### IDE ###
+.idea/
+*.iml
+*.iws
+.vscode/
+.settings/
+.project
+.classpath
+.factorypath
+
+### OS ###
+.DS_Store
+Thumbs.db

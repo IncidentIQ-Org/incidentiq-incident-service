@@ -31,4 +31,12 @@ public class IncidentResponse {
     private LocalDateTime updatedAt;
     private LocalDateTime dueDate;
     private boolean slaBreached;
+    private String tags;
+    private String rootCause;
+    private String resolutionSteps;
+    private String resolutionSummary;
+    private Integer actualResolutionMinutes;
+    private LocalDateTime resolvedAt;
+    private Boolean slaMissed;
+    private java.util.List<com.incidentiq.dto.AttachmentDto> attachments;
 }

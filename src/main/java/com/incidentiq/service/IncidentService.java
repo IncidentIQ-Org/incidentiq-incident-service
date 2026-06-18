@@ -1,5 +1,6 @@
 package com.incidentiq.service;
 
+import com.incidentiq.dto.ResolutionRequest;
 import com.incidentiq.dto.request.CreateIncidentRequest;
 import com.incidentiq.dto.request.UpdateIncidentRequest;
 import com.incidentiq.dto.response.IncidentResponse;
@@ -68,7 +69,33 @@ public interface IncidentService {
     Page<IncidentResponse> getIncidentsByReporter(Long reporterId, Pageable pageable);
 
     /**
+     * Retrieves incidents created by the currently authenticated user.
+     */
+    Page<IncidentResponse> getMyIncidents(Pageable pageable);
+
+    Page<IncidentResponse> getKnowledgeBase(Pageable pageable);
+
+    /**
      * Retrieves incidents assigned to a specific user.
      */
     Page<IncidentResponse> getIncidentsByAssignee(Long assigneeId, Pageable pageable);
+
+    /**
+     * Resolves an incident with detailed resolution information.
+     *
+     * @param id the incident ID
+     * @param resolutionRequest the resolution details
+     * @return the updated incident response
+     */
+    IncidentResponse resolveIncidentWithDetails(Long id, ResolutionRequest resolutionRequest);
+
+    /**
+     * Retrieves all incidents assigned to the currently authenticated user.
+     */
+    java.util.List<IncidentResponse> getMyAssignedIncidents();
+
+    /**
+     * Retrieves all incidents as a flat list for CSV export (no pagination).
+     */
+    java.util.List<IncidentResponse> getAllIncidentsForExport();
 }

@@ -13,7 +13,7 @@ import java.util.List;
  */
 public enum IncidentStatus {
 
-    OPEN(List.of("IN_PROGRESS", "NEED_MORE_INFO")),
+    OPEN(List.of("IN_PROGRESS", "NEED_MORE_INFO", "ESCALATED", "RESOLVED")),
     IN_PROGRESS(List.of("RESOLVED", "ESCALATED", "NEED_MORE_INFO")),
     NEED_MORE_INFO(List.of("IN_PROGRESS")),
     ESCALATED(List.of("IN_PROGRESS", "RESOLVED")),

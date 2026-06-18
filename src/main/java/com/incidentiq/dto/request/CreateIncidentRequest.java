@@ -3,6 +3,7 @@ package com.incidentiq.dto.request;
 import com.incidentiq.constants.IncidentConstants;
 import com.incidentiq.enums.IncidentCategory;
 import com.incidentiq.enums.IncidentPriority;
+import com.incidentiq.enums.IncidentStatus;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -14,7 +15,8 @@ import lombok.Setter;
 
 /**
  * DTO for creating a new incident.
- * All fields are required and validated.
+ * createdBy is automatically resolved from the authenticated user's JWT token.
+ * assignedTo is automatically determined by the workload-balancing algorithm.
  */
 @Getter
 @Setter
@@ -37,6 +39,8 @@ public class CreateIncidentRequest {
     @NotNull(message = IncidentConstants.PRIORITY_REQUIRED)
     private IncidentPriority priority;
 
-    @NotNull(message = IncidentConstants.CREATED_BY_REQUIRED)
+    // Optional fields - backend can override these
+    private IncidentStatus status;
     private Long createdBy;
+    private String tags;
 }

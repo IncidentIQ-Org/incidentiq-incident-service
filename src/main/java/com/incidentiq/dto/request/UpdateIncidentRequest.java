@@ -10,6 +10,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
+
 /**
  * DTO for updating an existing incident.
  * All fields are optional — only non-null fields are applied.
@@ -34,4 +36,6 @@ public class UpdateIncidentRequest {
     private IncidentStatus status;
 
     private Long assignedTo;
+
+    private LocalDateTime dueDate;
 }

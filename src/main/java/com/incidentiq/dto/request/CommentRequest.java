@@ -19,6 +19,5 @@ public class CommentRequest {
     @Size(max = 1000, message = "Comment must not exceed 1000 characters")
     private String content;
 
-    @NotNull(message = "User ID is required")
     private Long userId;
 }

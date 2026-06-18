@@ -22,15 +22,29 @@ public class DataInitializer implements CommandLineRunner {
     private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
 
     private final IncidentRepository incidentRepository;
+    private final com.incidentiq.repository.SlaConfigRepository slaConfigRepository;
 
-    public DataInitializer(IncidentRepository incidentRepository) {
+    public DataInitializer(IncidentRepository incidentRepository, com.incidentiq.repository.SlaConfigRepository slaConfigRepository) {
         this.incidentRepository = incidentRepository;
+        this.slaConfigRepository = slaConfigRepository;
     }
 
     @Override
     public void run(String... args) {
+        if (slaConfigRepository.count() == 0) {
+            log.info("Seeding SLA Configs...");
+            slaConfigRepository.saveAll(List.of(
+                com.incidentiq.model.SlaConfig.builder().priority(IncidentPriority.CRITICAL).targetHours(3).build(),
+                com.incidentiq.model.SlaConfig.builder().priority(IncidentPriority.HIGH).targetHours(12).build(),
+                com.incidentiq.model.SlaConfig.builder().priority(IncidentPriority.MEDIUM).targetHours(24).build(),
+                com.incidentiq.model.SlaConfig.builder().priority(IncidentPriority.LOW).targetHours(48).build()
+            ));
+        }
+
+        // Seeding disabled: incidents are created exclusively by real users.
+        log.info("Seed data disabled — incidents are created only by authenticated users");
         if (incidentRepository.count() > 0) {
-            log.info("Database already contains incidents — skipping seed data");
+            log.info("Incidents already seeded.");
             return;
         }
 
@@ -38,7 +52,7 @@ public class DataInitializer implements CommandLineRunner {
                 Incident.builder()
                         .title("Production Server Unresponsive")
                         .description("Main production server at us-east-1 is not responding to health checks. All services affected.")
-                        .category(IncidentCategory.INFRA)
+                        .category(IncidentCategory.CLOUD)
                         .priority(IncidentPriority.HIGH)
                         .status(IncidentStatus.OPEN)
                         .createdBy(1L)
@@ -60,7 +74,7 @@ public class DataInitializer implements CommandLineRunner {
                         .priority(IncidentPriority.HIGH)
                         .status(IncidentStatus.IN_PROGRESS)
                         .createdBy(1L)
-                        .assignedTo(10L)
+                        .assignedTo(4L) // tech_backend
                         .build(),
 
                 Incident.builder()
@@ -78,8 +92,8 @@ public class DataInitializer implements CommandLineRunner {
                         .category(IncidentCategory.NETWORK)
                         .priority(IncidentPriority.LOW)
                         .status(IncidentStatus.RESOLVED)
-                        .createdBy(4L)
-                        .assignedTo(15L)
+                        .createdBy(3L)
+                        .assignedTo(8L) // tech_network
                         .build()
         );
 

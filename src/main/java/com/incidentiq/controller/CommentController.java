@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/incidents/{incidentId}/comments")
+@RequestMapping("/{incidentId}/comments")
 @RequiredArgsConstructor
 @Tag(name = "Comments", description = "Incident discussion and comment APIs")
 public class CommentController {
@@ -22,7 +22,7 @@ public class CommentController {
     private final CommentService commentService;
 
     @PostMapping("/add")
-    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN') or hasRole('MANAGER') or @authService.isOwner(#incidentId)")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN') or hasRole('MANAGER') or @authService.isOwner(#incidentId) or @authService.isAssignee(#incidentId)")
     @Operation(summary = "Add a comment", description = "Adds a new comment to the specified incident")
     public ResponseEntity<CommentResponse> addComment(
             @PathVariable Long incidentId,
@@ -31,14 +31,14 @@ public class CommentController {
     }
 
     @GetMapping("/all")
-    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN') or hasRole('MANAGER') or @authService.isOwner(#incidentId)")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN') or hasRole('MANAGER') or @authService.isOwner(#incidentId) or @authService.isAssignee(#incidentId)")
     @Operation(summary = "Get all comments", description = "Retrieves all comments for the specified incident")
     public ResponseEntity<List<CommentResponse>> getComments(@PathVariable Long incidentId) {
         return ResponseEntity.ok(commentService.getCommentsByIncident(incidentId));
     }
 
     @PutMapping("/update/{commentId}")
-    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN') or hasRole('MANAGER') or @authService.isOwner(#incidentId)")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN') or hasRole('MANAGER') or @authService.isOwner(#incidentId) or @authService.isAssignee(#incidentId)")
     @Operation(summary = "Update a comment", description = "Updates an existing comment's content")
     public ResponseEntity<CommentResponse> updateComment(
             @PathVariable Long incidentId,

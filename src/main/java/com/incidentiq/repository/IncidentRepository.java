@@ -3,6 +3,7 @@ package com.incidentiq.repository;
 import com.incidentiq.enums.IncidentPriority;
 import com.incidentiq.enums.IncidentStatus;
 import com.incidentiq.enums.EscalationLevel;
+import com.incidentiq.enums.IncidentCategory;
 import com.incidentiq.model.Incident;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -22,13 +23,19 @@ public interface IncidentRepository extends JpaRepository<Incident, Long> {
 
     Page<Incident> findByCreatedBy(Long createdBy, Pageable pageable);
 
+    Page<Incident> findByStatusIn(List<IncidentStatus> statuses, Pageable pageable);
+
     Page<Incident> findByAssignedTo(Long assignedTo, Pageable pageable);
+
+    List<Incident> findAllByAssignedTo(Long assignedTo);
 
     long countByStatus(IncidentStatus status);
 
     long countByPriority(IncidentPriority priority);
 
-    long countByCategory(com.incidentiq.enums.IncidentCategory category);
+    long countByCategory(IncidentCategory category);
+
+    List<Incident> findByCategory(IncidentCategory category);
 
     @Query("SELECT COUNT(i) FROM Incident i WHERE i.dueDate < :now AND i.status NOT IN ('CLOSED', 'RESOLVED')")
     long countOverdue(LocalDateTime now);
@@ -66,9 +73,23 @@ public interface IncidentRepository extends JpaRepository<Incident, Long> {
     List<Incident> findRecentByCategory(@Param("category") com.incidentiq.enums.IncidentCategory category,
                                          @Param("since") LocalDateTime since);
 
+    /** Find RESOLVED or CLOSED incidents by category - used for similarity knowledge base */
+    @Query("SELECT i FROM Incident i WHERE i.category = :category " +
+           "AND i.status IN ('RESOLVED', 'CLOSED') ORDER BY i.resolvedAt DESC NULLS LAST")
+    List<Incident> findResolvedByCategory(@Param("category") IncidentCategory category);
+
+    /** Find ALL RESOLVED or CLOSED incidents across all categories - cross-category fallback */
+    @Query("SELECT i FROM Incident i WHERE i.status IN ('RESOLVED', 'CLOSED') ORDER BY i.resolvedAt DESC NULLS LAST")
+    List<Incident> findAllResolved();
+
     // ── War Room Queries ────────────────────────────────────────────────
 
     /** Count CRITICAL incidents created in the last hour */
     @Query("SELECT COUNT(i) FROM Incident i WHERE i.priority = 'CRITICAL' AND i.createdAt > :since")
     long countRecentCriticalIncidents(@Param("since") LocalDateTime since);
+
+    /** Find active incidents with a dueDate set that haven't had a 75% SLA warning sent yet */
+    @Query("SELECT i FROM Incident i WHERE i.status NOT IN ('CLOSED', 'RESOLVED') " +
+           "AND i.dueDate IS NOT NULL AND i.dueDate > :now AND (i.slaAlertSent = false OR i.slaAlertSent IS NULL)")
+    List<Incident> findActiveWithDueDateAndNoAlert(@Param("now") LocalDateTime now);
 }

@@ -54,4 +54,14 @@ public class AuthorizationService {
         }
         return null;
     }
+
+    public boolean isAssignee(Long incidentId) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getDetails() == null) return false;
+        
+        Long currentUserId = getCurrentUserId();
+        return incidentRepository.findById(incidentId)
+                .map(incident -> incident.getAssignedTo() != null && incident.getAssignedTo().equals(currentUserId))
+                .orElse(false);
+    }
 }

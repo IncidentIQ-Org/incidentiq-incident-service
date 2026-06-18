@@ -88,7 +88,7 @@ class IncidentControllerTest {
                 .id(1L)
                 .title("Server Down")
                 .description("Production server not responding")
-                .category("INFRA")
+                .category("CLOUD")
                 .priority("HIGH")
                 .status("OPEN")
                 .createdBy(1L)
@@ -111,9 +111,8 @@ class IncidentControllerTest {
             CreateIncidentRequest request = CreateIncidentRequest.builder()
                     .title("Server Down")
                     .description("Production server not responding")
-                    .category(IncidentCategory.INFRA)
+                    .category(IncidentCategory.CLOUD)
                     .priority(IncidentPriority.HIGH)
-                    .createdBy(1L)
                     .build();
 
             when(incidentService.createIncident(any(CreateIncidentRequest.class)))
@@ -136,7 +135,6 @@ class IncidentControllerTest {
                     .description("Some description")
                     .category(IncidentCategory.BACKEND)
                     .priority(IncidentPriority.LOW)
-                    .createdBy(1L)
                     .build();
 
             mockMvc.perform(post(BASE_URL + "/create")
@@ -233,7 +231,7 @@ class IncidentControllerTest {
                     .id(1L)
                     .title("Server Down")
                     .description("Production server not responding")
-                    .category("INFRA")
+                    .category("CLOUD")
                     .priority("HIGH")
                     .status("IN_PROGRESS")
                     .createdBy(1L)

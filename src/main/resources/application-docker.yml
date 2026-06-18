@@ -1,0 +1,71 @@
+server:
+  port: 8082
+  forward-headers-strategy: framework
+
+spring:
+  application:
+    name: incidentiq-service
+  datasource:
+    url: jdbc:postgresql://postgres:5432/incidentiq_incidents
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:687898}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
+
+logging:
+  level:
+    root: INFO
+    com.incidentiq: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    servers:
+      - url: /api/incidents
+        description: Gateway Server
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+
+spring.data.web.pageable:
+  default-page-size: 10
+  max-page-size: 100
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://discovery-server:8761/eureka/
+  instance:
+    prefer-ip-address: true
+
+jwt:
+  secret: ${JWT_SECRET:ThisIsAVeryLongSecretKeyUsedForJWTTokenGenerationAndValidationItMustBeAtLeast256BitsLong}
+  expiration: 86400000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+  health:
+    defaults:
+      enabled: true
+    db:
+      enabled: true
+    diskspace:
+      enabled: true

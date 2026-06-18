@@ -28,7 +28,7 @@ public class IncidentTimeline {
     @Column(nullable = false)
     private String description;
 
-    @Column(nullable = false)
+    /** User who performed the action (null for system-generated events like auto-escalation) */
     private Long performedBy;
 
     @CreationTimestamp
