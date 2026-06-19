@@ -76,6 +76,9 @@ public class IncidentServiceImpl implements IncidentService {
     @Data
     private static class ExternalUserResponse {
         private Long id;
+        private String username;
+        private String firstName;
+        private String lastName;
         private String specialization;
         private Integer workloadScore;
         private String role;
@@ -482,10 +485,36 @@ public class IncidentServiceImpl implements IncidentService {
                 ).toMinutes();
             }
 
+            // Enrich with the assignee's name so the gamification leaderboard shows a real name.
+            // Use /all (permitted without auth for internal calls) and match by id, since
+            // /{id} requires a bearer token we don't carry on this service-to-service call.
+            String assigneeUsername = null, assigneeFirstName = null, assigneeLastName = null;
+            try {
+                ExternalUserResponse[] users = restTemplate.getForObject(
+                        "http://user-service/all", ExternalUserResponse[].class);
+                if (users != null) {
+                    for (ExternalUserResponse u : users) {
+                        if (incident.getAssignedTo().equals(u.getId())) {
+                            assigneeUsername = u.getUsername();
+                            assigneeFirstName = u.getFirstName();
+                            assigneeLastName = u.getLastName();
+                            break;
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Could not fetch assignee {} for gamification event: {}",
+                        incident.getAssignedTo(), e.getMessage());
+            }
+
             com.incidentiq.dto.event.IncidentResolvedEvent event = com.incidentiq.dto.event.IncidentResolvedEvent.builder()
                     .incidentId(incident.getId())
                     .incidentTitle(incident.getTitle())
+                    .status(incident.getStatus() != null ? incident.getStatus().name() : null)
                     .assignedTo(incident.getAssignedTo())
+                    .assignedToUsername(assigneeUsername)
+                    .assignedToFirstName(assigneeFirstName)
+                    .assignedToLastName(assigneeLastName)
                     .createdBy(incident.getCreatedBy())
                     .category(incident.getCategory() != null ? incident.getCategory().name() : null)
                     .priority(incident.getPriority() != null ? incident.getPriority().name() : null)

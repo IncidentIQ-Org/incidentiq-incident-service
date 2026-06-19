@@ -14,7 +14,11 @@ import java.time.LocalDateTime;
 public class IncidentResolvedEvent {
     private Long incidentId;
     private String incidentTitle;
+    private String status;
     private Long assignedTo;
+    private String assignedToUsername;
+    private String assignedToFirstName;
+    private String assignedToLastName;
     private Long createdBy;
     private String category;
     private String priority;
