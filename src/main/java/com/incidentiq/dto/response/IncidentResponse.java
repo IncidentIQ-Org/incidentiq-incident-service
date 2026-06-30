@@ -24,6 +24,7 @@ public class IncidentResponse {
     private String description;
     private String category;
     private String priority;
+    private String complexity;
     private String status;
     private Long createdBy;
     private Long assignedTo;

@@ -24,10 +24,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
+import com.incidentiq.dto.response.IncidentStatusBroadcast;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
@@ -48,8 +50,10 @@ public class IncidentServiceImpl implements IncidentService {
     private final com.incidentiq.service.NotificationService notificationService;
     private final SlaConfigRepository slaConfigRepository;
     private final com.incidentiq.repository.SlaExtensionRequestRepository slaExtensionRequestRepository;
+    private final com.incidentiq.service.IntelligentAssignmentService intelligentAssignment;
 
     private final ApplicationEventPublisher eventPublisher;
+    private final SimpMessagingTemplate messagingTemplate;
 
     public IncidentServiceImpl(IncidentRepository incidentRepository,
                                com.incidentiq.service.AuditService auditService,
@@ -60,7 +64,9 @@ public class IncidentServiceImpl implements IncidentService {
                                com.incidentiq.service.NotificationService notificationService,
                                SlaConfigRepository slaConfigRepository,
                                com.incidentiq.repository.SlaExtensionRequestRepository slaExtensionRequestRepository,
-                               ApplicationEventPublisher eventPublisher) {
+                               com.incidentiq.service.IntelligentAssignmentService intelligentAssignment,
+                               ApplicationEventPublisher eventPublisher,
+                               SimpMessagingTemplate messagingTemplate) {
         this.incidentRepository = incidentRepository;
         this.auditService = auditService;
         this.timelineService = timelineService;
@@ -70,7 +76,9 @@ public class IncidentServiceImpl implements IncidentService {
         this.notificationService = notificationService;
         this.slaConfigRepository = slaConfigRepository;
         this.slaExtensionRequestRepository = slaExtensionRequestRepository;
+        this.intelligentAssignment = intelligentAssignment;
         this.eventPublisher = eventPublisher;
+        this.messagingTemplate = messagingTemplate;
     }
 
     @Data
@@ -95,11 +103,12 @@ public class IncidentServiceImpl implements IncidentService {
         Incident incident = IncidentMapper.toEntity(request);
         incident.setCreatedBy(currentUserId);
 
-        // Auto-Assignment Logic based on workload score
-        incident.setAssignedTo(determineAssignee(incident.getCategory(), incident.getPriority()));
+        // Auto-Assignment Logic — factors category, expertise, workload,
+        // complexity and the candidate's experience level
+        incident.setAssignedTo(determineAssignee(incident.getCategory(), incident.getPriority(), incident.getComplexity()));
 
-        // SLA Calculation based on priority
-        incident.setDueDate(calculateDueDate(incident.getPriority()));
+        // SLA Calculation based on priority AND complexity
+        incident.setDueDate(calculateDueDate(incident.getPriority(), incident.getComplexity()));
 
         // Combine user-provided tags with auto-generated keywords
         java.util.Set<String> tagSet = new java.util.HashSet<>();
@@ -129,12 +138,10 @@ public class IncidentServiceImpl implements IncidentService {
 
         // Notify the creator (employee) about the incident creation
         if (!currentUserId.equals(saved.getAssignedTo())) {
-            notificationService.notifyCreation(
-                currentUserId,
-                saved.getId(),
-                saved.getTitle(),
-                "Your incident has been created and assigned to technician #" + saved.getAssignedTo()
-            );
+            String assignmentNote = saved.getAssignedTo() != null
+                ? "Your incident is being handled. A technician has been assigned automatically."
+                : "Your incident has been created. A technician will be assigned shortly.";
+            notificationService.notifyCreation(currentUserId, saved.getId(), saved.getTitle(), assignmentNote);
         }
 
         // Notify managers and admins about the new incident
@@ -235,12 +242,14 @@ public class IncidentServiceImpl implements IncidentService {
                 notifyWorkloadUpdate(newAssignee, calculateWeight(updated.getPriority()), 1);
             }
             timelineService.logEvent(id, "REASSIGNED", "Incident reassigned from " + oldAssignee + " to " + newAssignee, userId);
-            
-            // Notify both old and new assignees about reassignment
             notificationService.notifyReassignment(oldAssignee, newAssignee, id, updated.getTitle());
+            notificationService.notifyAdmins(id, updated.getTitle(),
+                String.format("INC-%d '%s' has been reassigned to a new technician.", id, updated.getTitle()));
         } else if (newAssignee != null && oldAssignee == null) {
             // First assignment (was unassigned before)
             notificationService.notifyAssignment(newAssignee, id, updated.getTitle());
+            notificationService.notifyAdmins(id, updated.getTitle(),
+                String.format("INC-%d '%s' has been assigned to a technician.", id, updated.getTitle()));
         }
         
         auditService.logAction("UPDATE_INCIDENT", userId, "Incident", id, "Updated status to: " + updated.getStatus());
@@ -255,6 +264,17 @@ public class IncidentServiceImpl implements IncidentService {
         Incident incident = findIncidentOrThrow(id);
         Long userId = authService.getCurrentUserId();
         auditService.logAction("DELETE_INCIDENT", userId, "Incident", id, "Title: " + incident.getTitle());
+
+        // If the incident is still active (counting toward the assignee's workload),
+        // decrement the assignee's counters before deleting — otherwise the workload
+        // and active-incident counts stay inflated forever (RESOLVED/CLOSED were already
+        // decremented at status-change time, so skip those).
+        if (incident.getAssignedTo() != null
+                && incident.getStatus() != IncidentStatus.RESOLVED
+                && incident.getStatus() != IncidentStatus.CLOSED) {
+            notifyWorkloadUpdate(incident.getAssignedTo(), -calculateWeight(incident.getPriority()), -1);
+        }
+
         // Delete Hibernate-managed child records that don't have DB-level CASCADE
         slaExtensionRequestRepository.deleteAll(slaExtensionRequestRepository.findByIncidentId(id));
         // incident_comments and incident_timeline are covered by V3 Flyway ON DELETE CASCADE
@@ -330,30 +350,31 @@ public class IncidentServiceImpl implements IncidentService {
             incident.setStatus(request.getStatus());
         }
         if (request.getAssignedTo() != null) {
-            Long oldAssignee = incident.getAssignedTo();
-            Long newAssignee = request.getAssignedTo();
-            incident.setAssignedTo(newAssignee);
-            
-            // Send notification for assignment
-            if (newAssignee != null && !newAssignee.equals(oldAssignee)) {
-                notificationService.notifyAssignment(newAssignee, incident.getId(), incident.getTitle());
-                if (oldAssignee != null) {
-                    notificationService.notifyReassignment(oldAssignee, newAssignee, incident.getId(), incident.getTitle());
-                }
-            }
+            incident.setAssignedTo(request.getAssignedTo());
+        }
+        boolean priorityChanged = false;
+        if (request.getComplexity() != null && request.getComplexity() != incident.getComplexity()) {
+            incident.setComplexity(request.getComplexity());
+            priorityChanged = true;
         }
         if (request.getDueDate() != null) {
+            // Explicit dueDate always wins.
             incident.setDueDate(request.getDueDate());
+        } else if (priorityChanged && incident.getStatus() != com.incidentiq.enums.IncidentStatus.RESOLVED
+                && incident.getStatus() != com.incidentiq.enums.IncidentStatus.CLOSED) {
+            // Priority/complexity drives the SLA — recompute the deadline when either
+            // changes and the incident is still open.
+            incident.setDueDate(calculateDueDate(incident.getPriority(), incident.getComplexity()));
         }
     }
 
-    private Long determineAssignee(IncidentCategory category, IncidentPriority priority) {
+    private Long determineAssignee(IncidentCategory category, IncidentPriority priority, com.incidentiq.enums.Complexity complexity) {
         try {
-            String url = "http://user-service/technicians/best?specialization=" + category.name();
-            ExternalUserResponse best = restTemplate.getForObject(url, ExternalUserResponse.class);
-            if (best != null && best.getId() != null) {
-                notifyWorkloadUpdate(best.getId(), calculateWeight(priority), 1);
-                return best.getId();
+            Incident probe = Incident.builder().category(category).priority(priority).complexity(complexity).build();
+            Long assigneeId = intelligentAssignment.findBestAssignee(probe);
+            if (assigneeId != null) {
+                notifyWorkloadUpdate(assigneeId, calculateWeight(priority), 1);
+                return assigneeId;
             }
         } catch (Exception e) {
             log.warn("Auto-assignment failed for category {}: {}", category, e.getMessage());
@@ -380,17 +401,26 @@ public class IncidentServiceImpl implements IncidentService {
         };
     }
 
-    private LocalDateTime calculateDueDate(IncidentPriority priority) {
+    private LocalDateTime calculateDueDate(IncidentPriority priority, com.incidentiq.enums.Complexity complexity) {
         LocalDateTime now = LocalDateTime.now();
-        int targetHours = slaConfigRepository.findByPriority(priority)
+        com.incidentiq.enums.Complexity cx = complexity != null ? complexity : com.incidentiq.enums.Complexity.MEDIUM;
+        int targetHours = slaConfigRepository.findByPriorityAndComplexity(priority, cx)
                 .map(com.incidentiq.model.SlaConfig::getTargetHours)
-                .orElseGet(() -> switch (priority) {
-                    case CRITICAL -> 3;
-                    case HIGH -> 12;
-                    case MEDIUM -> 24;
-                    case LOW -> 48;
-                });
+                // Fall back to a priority-only lookup, then to the hardcoded matrix.
+                .orElseGet(() -> slaConfigRepository.findByPriority(priority)
+                        .map(com.incidentiq.model.SlaConfig::getTargetHours)
+                        .orElse(defaultTargetHours(priority, cx)));
         return now.plusHours(targetHours);
+    }
+
+    /** Hardcoded fallback mirroring the seeded Priority x Complexity matrix exactly. */
+    private int defaultTargetHours(IncidentPriority priority, com.incidentiq.enums.Complexity complexity) {
+        return switch (priority) {
+            case CRITICAL -> switch (complexity) { case EASY -> 1; case MEDIUM -> 2;  case HARD -> 4;  case COMPLEX -> 6; };
+            case HIGH     -> switch (complexity) { case EASY -> 2; case MEDIUM -> 4;  case HARD -> 8;  case COMPLEX -> 12; };
+            case MEDIUM   -> switch (complexity) { case EASY -> 4; case MEDIUM -> 8;  case HARD -> 16; case COMPLEX -> 24; };
+            case LOW      -> switch (complexity) { case EASY -> 8; case MEDIUM -> 16; case HARD -> 24; case COMPLEX -> 48; };
+        };
     }
 
     @Override
@@ -518,6 +548,7 @@ public class IncidentServiceImpl implements IncidentService {
                     .createdBy(incident.getCreatedBy())
                     .category(incident.getCategory() != null ? incident.getCategory().name() : null)
                     .priority(incident.getPriority() != null ? incident.getPriority().name() : null)
+                    .complexity(incident.getComplexity() != null ? incident.getComplexity().name() : null)
                     .slaMet(slaMet)
                     .resolutionTimeMinutes(resolutionTime)
                     .resolvedAt(incident.getResolvedAt())
@@ -553,5 +584,66 @@ public class IncidentServiceImpl implements IncidentService {
         return incidentRepository.findAll().stream()
                 .map(IncidentMapper::toResponse)
                 .toList();
+    }
+
+    @Override
+    @Transactional
+    public IncidentResponse changeStatus(Long id, IncidentStatus newStatus) {
+        Incident incident = findIncidentOrThrow(id);
+        Long currentUserId = authService.getCurrentUserId();
+        String oldStatus = incident.getStatus().name();
+
+        if (!incident.getStatus().canTransitionTo(newStatus)) {
+            throw new InvalidStatusTransitionException(
+                String.format("Cannot transition from %s to %s.", incident.getStatus(), newStatus));
+        }
+
+        incident.setStatus(newStatus);
+        Incident saved = incidentRepository.save(incident);
+
+        timelineService.logEvent(id, "STATUS_CHANGE",
+            "Status changed from " + oldStatus + " to " + newStatus.name(), currentUserId);
+        auditService.logAction("STATUS_CHANGE", currentUserId, "Incident", id,
+            oldStatus + " → " + newStatus.name());
+
+        // Notify assignee
+        if (saved.getAssignedTo() != null) {
+            notificationService.notifyStatusChange(saved.getAssignedTo(), id, saved.getTitle(), oldStatus, newStatus.name());
+        }
+        // Notify reporter
+        if (saved.getCreatedBy() != null && !saved.getCreatedBy().equals(saved.getAssignedTo())) {
+            notificationService.notifyStatusChange(saved.getCreatedBy(), id, saved.getTitle(), oldStatus, newStatus.name());
+        }
+        // Notify managers and admins
+        try {
+            ExternalUserResponse[] users = restTemplate.getForObject("http://user-service/all", ExternalUserResponse[].class);
+            if (users != null) {
+                for (ExternalUserResponse u : users) {
+                    if ("ROLE_MANAGER".equals(u.getRole()) || "ROLE_ADMIN".equals(u.getRole())) {
+                        notificationService.notifyStatusChange(u.getId(), id, saved.getTitle(), oldStatus, newStatus.name());
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("Failed to notify managers/admins of status change: {}", e.getMessage());
+        }
+
+        // Decrement workload if incident is being closed out
+        if ((newStatus == IncidentStatus.RESOLVED || newStatus == IncidentStatus.CLOSED) && saved.getAssignedTo() != null) {
+            notifyWorkloadUpdate(saved.getAssignedTo(), -calculateWeight(saved.getPriority()), -1);
+        }
+
+        // Broadcast to all open viewers of this incident via WebSocket
+        IncidentStatusBroadcast broadcast = IncidentStatusBroadcast.builder()
+            .incidentId(id)
+            .oldStatus(oldStatus)
+            .newStatus(newStatus.name())
+            .changedBy(currentUserId)
+            .changedAt(LocalDateTime.now())
+            .build();
+        messagingTemplate.convertAndSend("/topic/incidents/" + id + "/status", broadcast);
+
+        log.info("Incident {} status changed: {} → {}", id, oldStatus, newStatus.name());
+        return IncidentMapper.toResponse(saved);
     }
 }

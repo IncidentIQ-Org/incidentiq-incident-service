@@ -3,6 +3,7 @@ package com.incidentiq.ai.prompt;
 import com.incidentiq.ai.client.AiMessage;
 import com.incidentiq.ai.dto.AiRequests;
 import com.incidentiq.ai.util.AiTextUtils;
+import com.incidentiq.enums.Complexity;
 import com.incidentiq.enums.IncidentCategory;
 import com.incidentiq.enums.IncidentPriority;
 import com.incidentiq.model.Incident;
@@ -27,6 +28,8 @@ public final class PromptLibrary {
     private static final String CATEGORIES = Arrays.stream(IncidentCategory.values())
             .map(Enum::name).collect(Collectors.joining(", "));
     private static final String PRIORITIES = Arrays.stream(IncidentPriority.values())
+            .map(Enum::name).collect(Collectors.joining(", "));
+    private static final String COMPLEXITIES = Arrays.stream(Complexity.values())
             .map(Enum::name).collect(Collectors.joining(", "));
 
     /** Shared identity + guardrails prepended to scoped chat. */
@@ -58,12 +61,23 @@ public final class PromptLibrary {
                   "improvedDescription": string,  // 2-4 sentences: symptom, scope, impact
                   "category": string,             // one of: %s
                   "priority": string,             // one of: %s
+                  "complexity": string,           // one of: %s
+                  "complexityConfidence": number, // 0-100 confidence in the complexity call
+                  "complexityReason": string,     // one sentence on why this complexity
                   "tags": string[],               // 2-5 short lowercase tags
                   "rationale": string             // one short sentence on category+priority choice
                 }
-                Choose priority by impact: CRITICAL=outage/security breach, HIGH=major degradation,
-                MEDIUM=partial/non-blocking, LOW=cosmetic/scheduled.
-                """.formatted(CATEGORIES, PRIORITIES);
+                Choose priority by IMPACT (business urgency): CRITICAL=outage/security breach,
+                HIGH=major degradation, MEDIUM=partial/non-blocking, LOW=cosmetic/scheduled.
+                Choose complexity by TECHNICAL DIFFICULTY to resolve, INDEPENDENT of priority:
+                EASY=well-understood, single-component, quick fix (e.g. broken button, typo, reset);
+                MEDIUM=structured troubleshooting within one component (e.g. slow query, failed deploy);
+                HARD=deep investigation, specialist knowledge, multiple systems (e.g. replication lag, memory leak);
+                COMPLEX=multi-team/multi-step, root cause unclear, large blast radius (e.g. platform-wide auth failure, database exposed to internet).
+                A simple fix can still be CRITICAL priority, and a HARD problem can still be LOW priority.
+                IMPORTANT: infer complexity from the TITLE alone when the description is sparse — the title
+                usually contains enough technical signal (scope, system, symptoms) to make a good call.
+                """.formatted(CATEGORIES, PRIORITIES, COMPLEXITIES);
 
         String user = """
                 Raw title: %s
@@ -118,9 +132,17 @@ public final class PromptLibrary {
                 You are a senior SRE coaching a technician who just opened an IncidentIQ incident.
                 Give practical, ordered guidance grounded in the similar resolved incidents provided.
 
+                Adapt the DEPTH of your guidance to the incident's complexity:
+                - EASY: a couple of simple, direct steps — don't over-engineer.
+                - MEDIUM: a structured troubleshooting sequence.
+                - HARD: a detailed investigation plan; call out what data to gather.
+                - COMPLEX: a multi-step resolution strategy; explicitly suggest leaning on
+                  the similar-incident analysis and knowledge base, and flag where to
+                  bring in specialists or a manager.
+
                 Return ONLY a JSON object with exactly these keys:
                 {
-                  "troubleshootingSteps": string[],  // 3-6 concrete diagnostic steps, in order
+                  "troubleshootingSteps": string[],  // 2-8 concrete diagnostic steps (more for harder incidents), in order
                   "nextActions": string[],           // 2-4 immediate next actions
                   "commonFixes": string[],           // 2-4 fixes that worked for similar incidents
                   "guidance": string,                // 1-2 sentence overall recommendation
@@ -133,6 +155,7 @@ public final class PromptLibrary {
         user.append("Title: ").append(nullToEmpty(inc.getTitle())).append('\n');
         user.append("Category: ").append(inc.getCategory()).append('\n');
         user.append("Priority: ").append(inc.getPriority()).append('\n');
+        user.append("Complexity: ").append(inc.getComplexity()).append('\n');
         user.append("Description: ").append(AiTextUtils.truncate(inc.getDescription(), 1000)).append('\n');
         appendSimilarResolutions(user, similar);
         user.append("\nProvide the coaching as JSON.");

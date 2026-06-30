@@ -79,11 +79,24 @@ public class CopilotService {
         if (res.success()) {
             JsonNode json = parseJson(res.content());
             if (json != null) {
+                IncidentCategory cat = validCategory(text(json, "category", req.getCategory()));
+                // Complexity: trust the model when it returns a valid value, otherwise
+                // back-fill from the deterministic estimator so the field is never blank.
+                String rawComplexity = text(json, "complexity", null);
+                ComplexityGuess fallbackCx = guessComplexity(
+                        nz(req.getTitle()) + " " + nz(req.getDescription()), cat);
+                com.incidentiq.enums.Complexity complexity = rawComplexity != null
+                        ? validComplexity(rawComplexity) : fallbackCx.level();
+                Double conf = number(json, "complexityConfidence", (double) fallbackCx.confidence());
+                String cxReason = text(json, "complexityReason", fallbackCx.reason());
                 return AiResponses.IncidentAssist.builder()
                         .improvedTitle(text(json, "improvedTitle", req.getTitle()))
                         .improvedDescription(text(json, "improvedDescription", req.getDescription()))
-                        .category(validCategory(text(json, "category", req.getCategory())).name())
+                        .category(cat.name())
                         .priority(validPriority(text(json, "priority", null)).name())
+                        .complexity(complexity.name())
+                        .complexityConfidence(conf != null ? (int) Math.round(conf) : fallbackCx.confidence())
+                        .complexityReason(cxReason)
                         .tags(stringList(json, "tags"))
                         .rationale(text(json, "rationale", null))
                         .meta(meta(res))
@@ -98,11 +111,15 @@ public class CopilotService {
                 nz(req.getTitle()), nz(req.getDescription()));
         IncidentCategory category = guessCategory(nz(req.getTitle()) + " " + nz(req.getDescription()),
                 validCategory(req.getCategory()));
+        ComplexityGuess cx = guessComplexity(nz(req.getTitle()) + " " + nz(req.getDescription()), category);
         return AiResponses.IncidentAssist.builder()
                 .improvedTitle(tidyTitle(req.getTitle()))
                 .improvedDescription(nz(req.getDescription()))
                 .category(category.name())
                 .priority(priority.name())
+                .complexity(cx.level().name())
+                .complexityConfidence(cx.confidence())
+                .complexityReason(cx.reason())
                 .tags(keywordTags(nz(req.getTitle()) + " " + nz(req.getDescription())))
                 .rationale("Heuristic suggestion based on keyword analysis.")
                 .meta(AiMeta.heuristic(notice))
@@ -187,10 +204,25 @@ public class CopilotService {
 
     private AiResponses.Coaching heuristicCoaching(Incident inc, List<Incident> similar,
                                                    List<AiResponses.Coaching.SimilarRef> refs, String notice) {
+        com.incidentiq.enums.Complexity cx = inc.getComplexity() != null
+                ? inc.getComplexity() : com.incidentiq.enums.Complexity.MEDIUM;
+
+        // Depth of guidance scales with complexity.
         List<String> steps = new ArrayList<>(List.of(
                 "Confirm the symptom and its scope (who/what is affected).",
-                "Check logs and metrics for the " + inc.getCategory() + " component.",
-                "Review recent deployments or configuration changes."));
+                "Check logs and metrics for the " + inc.getCategory() + " component."));
+        if (cx != com.incidentiq.enums.Complexity.EASY) {
+            steps.add("Review recent deployments or configuration changes.");
+        }
+        if (cx == com.incidentiq.enums.Complexity.HARD || cx == com.incidentiq.enums.Complexity.COMPLEX) {
+            steps.add("Isolate the failing layer by reproducing in a controlled environment.");
+            steps.add("Correlate across dependent systems (DB, network, upstream/downstream services).");
+        }
+        if (cx == com.incidentiq.enums.Complexity.COMPLEX) {
+            steps.add("Open a working doc and capture findings as you go — this is a multi-step investigation.");
+            steps.add("Pull in a specialist for the affected domain and notify your manager early.");
+        }
+
         List<String> fixes = new ArrayList<>();
         for (Incident s : similar) {
             if (s.getResolutionSummary() != null && !s.getResolutionSummary().isBlank()) {
@@ -198,11 +230,28 @@ public class CopilotService {
             }
         }
         if (fixes.isEmpty()) fixes.add("No similar resolved incidents on record yet.");
+
+        List<String> nextActions = new ArrayList<>(List.of(
+                "Assign/confirm ownership", "Update status to IN_PROGRESS once investigating"));
+        if (cx == com.incidentiq.enums.Complexity.COMPLEX || cx == com.incidentiq.enums.Complexity.HARD) {
+            nextActions.add("Review the knowledge base and similar incidents before changing anything");
+        }
+        if (cx == com.incidentiq.enums.Complexity.COMPLEX) {
+            nextActions.add("Consider escalating to a manager / war room if impact is wide");
+        }
+
+        String guidance = switch (cx) {
+            case EASY -> "This looks straightforward — apply the standard fix and verify.";
+            case MEDIUM -> "Work the steps in order; compare against the similar incidents below.";
+            case HARD -> "Treat this as a real investigation: gather evidence before acting, and lean on the similar incidents.";
+            case COMPLEX -> "High-difficulty incident — follow a deliberate multi-step strategy, use similar-incident analysis and the KB, and loop in specialists/managers.";
+        };
+
         return AiResponses.Coaching.builder()
                 .troubleshootingSteps(steps)
-                .nextActions(List.of("Assign/confirm ownership", "Update status to IN_PROGRESS once investigating"))
+                .nextActions(nextActions)
                 .commonFixes(fixes)
-                .guidance("Start with the highest-signal logs for this category, then compare against the similar incidents below.")
+                .guidance(guidance)
                 .confidence(similar.isEmpty() ? 30.0 : 60.0)
                 .basedOn(refs)
                 .meta(AiMeta.heuristic(notice))
@@ -567,6 +616,67 @@ public class CopilotService {
         }
         return IncidentPriority.MEDIUM;
     }
+
+    private com.incidentiq.enums.Complexity validComplexity(String raw) {
+        if (raw != null) {
+            for (com.incidentiq.enums.Complexity c : com.incidentiq.enums.Complexity.values()) {
+                if (c.name().equalsIgnoreCase(raw.trim())) return c;
+            }
+        }
+        return com.incidentiq.enums.Complexity.MEDIUM;
+    }
+
+    /**
+     * Deterministic complexity estimate used when the LLM is unavailable. Scores
+     * difficulty signals in the text plus a small per-category baseline, then maps
+     * the score to a band with a rough confidence.
+     */
+    private ComplexityGuess guessComplexity(String text, IncidentCategory category) {
+        String t = nz(text).toLowerCase();
+        int score = 0;
+        // Catastrophic scale — title alone is enough (all users / platform-wide outage)
+        if (t.matches(".*(all users|entire platform|platform.wide|company.wide|full outage|complete outage|all services|everyone affected|nobody can).*")) score += 3;
+        // Critical security breach signals (stronger than generic "security" keyword)
+        if (t.matches(".*(exposed to public|exposed to internet|unauthorized access|data breach|credential leak|privilege escalat|data exfil).*")) score += 3;
+        // Intermittent / hard-to-reproduce bugs
+        if (t.matches(".*(intermittent|sometimes|random|cannot reproduce|hard to reproduce|peak|under load|race condition|deadlock|memory leak|corruption).*")) score += 3;
+        // Performance / scale investigation
+        if (t.matches(".*(performance|latency|slow|tuning|optimi|scal).*")) score += 2;
+        // Multi-system / distributed signals
+        if (t.matches(".*(multiple|several|across|distributed|cluster|microservice|integration|third.?party|upstream|downstream).*")) score += 2;
+        // Deep investigation needed
+        if (t.matches(".*(root cause|investigat|analy|unknown|unclear|not sure|mysterious).*")) score += 2;
+        // General security / data signals
+        if (t.matches(".*(security|breach|vulnerab|exploit|migration|data loss|firewall|misconfigur).*")) score += 2;
+        // Infrastructure deep-dive: replication, failover, sync
+        if (t.matches(".*(replication lag|replication fail|replica|failover|sync.lag|cascade fail|data sync).*")) score += 2;
+        // Production environment multiplier
+        if (t.matches(".*(production|prod .*fail|critical path).*")) score += 1;
+        // Simplicity signals pull it back down
+        if (t.matches(".*(typo|label|cosmetic|rename|config flag|toggle|reset password|clear cache|simple|trivial|one.?line|irresponsive|unresponsive button|broken link|missing icon).*")) score -= 2;
+        // Category baseline difficulty
+        if (category == IncidentCategory.DATABASE || category == IncidentCategory.SECURITY
+                || category == IncidentCategory.NETWORK || category == IncidentCategory.CLOUD) score += 1;
+        if (category == IncidentCategory.FRONTEND || category == IncidentCategory.APPLICATION_SUPPORT) score -= 1;
+
+        com.incidentiq.enums.Complexity level;
+        if (score <= 0)      level = com.incidentiq.enums.Complexity.EASY;
+        else if (score <= 2) level = com.incidentiq.enums.Complexity.MEDIUM;
+        else if (score <= 4) level = com.incidentiq.enums.Complexity.HARD;
+        else                 level = com.incidentiq.enums.Complexity.COMPLEX;
+
+        // Confidence: stronger signal (further from band edges) → higher confidence.
+        int confidence = Math.max(55, Math.min(85, 60 + Math.abs(score) * 4));
+        String reason = switch (level) {
+            case EASY -> "Looks like a well-understood, single-component fix.";
+            case MEDIUM -> "Needs structured troubleshooting within one component.";
+            case HARD -> "Signals deep investigation and specialist knowledge across systems.";
+            case COMPLEX -> "Multiple difficulty signals — likely multi-step, multi-team analysis.";
+        };
+        return new ComplexityGuess(level, confidence, reason);
+    }
+
+    private record ComplexityGuess(com.incidentiq.enums.Complexity level, int confidence, String reason) {}
 
     // ═══════════════════════════════════════════════════════════════════════
     //  Heuristic building blocks

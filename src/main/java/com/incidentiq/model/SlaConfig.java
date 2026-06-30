@@ -1,5 +1,6 @@
 package com.incidentiq.model;
 
+import com.incidentiq.enums.Complexity;
 import com.incidentiq.enums.IncidentPriority;
 import jakarta.persistence.*;
 import lombok.*;
@@ -8,6 +9,10 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
+/**
+ * SLA target for a (priority, complexity) pair. Uniqueness of the composite
+ * key is enforced by Flyway migration V4 (constraint uq_sla_priority_complexity).
+ */
 @Entity
 @Table(name = "sla_configs")
 @Getter
@@ -22,8 +27,12 @@ public class SlaConfig {
     private Long id;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private IncidentPriority priority;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private Complexity complexity;
 
     @Column(name = "target_hours", nullable = false)
     private Integer targetHours;

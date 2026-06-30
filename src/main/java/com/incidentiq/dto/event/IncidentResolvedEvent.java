@@ -22,6 +22,7 @@ public class IncidentResolvedEvent {
     private Long createdBy;
     private String category;
     private String priority;
+    private String complexity;
     private boolean slaMet;
     private Integer resolutionTimeMinutes;
     private LocalDateTime resolvedAt;

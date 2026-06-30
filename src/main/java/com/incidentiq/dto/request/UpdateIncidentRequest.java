@@ -33,6 +33,8 @@ public class UpdateIncidentRequest {
 
     private IncidentPriority priority;
 
+    private com.incidentiq.enums.Complexity complexity;
+
     private IncidentStatus status;
 
     private Long assignedTo;

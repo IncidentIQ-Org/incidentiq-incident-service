@@ -2,8 +2,10 @@ package com.incidentiq.service.impl;
 
 import com.incidentiq.dto.request.CommentRequest;
 import com.incidentiq.dto.response.CommentResponse;
+import com.incidentiq.exception.IncidentNotFoundException;
 import com.incidentiq.model.Comment;
 import com.incidentiq.repository.CommentRepository;
+import com.incidentiq.repository.IncidentRepository;
 import com.incidentiq.service.CommentService;
 
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +21,7 @@ import java.util.stream.Collectors;
 public class CommentServiceImpl implements CommentService {
 
     private final CommentRepository commentRepository;
+    private final IncidentRepository incidentRepository;
     private final com.incidentiq.service.TimelineService timelineService;
     private final com.incidentiq.service.AuditService auditService;
     private final com.incidentiq.security.AuthorizationService authService;
@@ -27,6 +30,9 @@ public class CommentServiceImpl implements CommentService {
     @Transactional
     public CommentResponse addComment(Long incidentId, CommentRequest request) {
         log.info("Adding comment to incident: {}", incidentId);
+        if (!incidentRepository.existsById(incidentId)) {
+            throw new IncidentNotFoundException("Incident not found with id: " + incidentId);
+        }
         Long userId = authService.getCurrentUserId();
         
         Comment comment = Comment.builder()

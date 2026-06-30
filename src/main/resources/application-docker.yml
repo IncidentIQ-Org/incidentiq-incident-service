@@ -1,6 +1,10 @@
 server:
   port: 8082
   forward-headers-strategy: framework
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/plain
+    min-response-size: 1024
 
 spring:
   application:
@@ -10,6 +14,23 @@ spring:
     username: ${DB_USER:postgres}
     password: ${DB_PASSWORD:687898}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 2
+      connection-timeout: 20000
+      idle-timeout: 300000
+      max-lifetime: 1200000
+  data:
+    redis:
+      host: ${SPRING_REDIS_HOST:redis}
+      port: 6379
+      timeout: 5000ms
+      connect-timeout: 3000ms
+  cache:
+    type: redis
+    redis:
+      time-to-live: 600000
+      cache-null-values: false
   jpa:
     hibernate:
       ddl-auto: update
@@ -23,7 +44,7 @@ spring:
 logging:
   level:
     root: INFO
-    com.incidentiq: DEBUG
+    com.incidentiq: INFO
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
 

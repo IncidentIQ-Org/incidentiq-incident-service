@@ -30,8 +30,10 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import com.incidentiq.dto.request.StatusChangeRequest;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -407,6 +409,26 @@ public class IncidentController {
         @Operation(summary = "Get AI Coaching Advice", description = "Returns AI-driven real-time resolution coaching based on historical similar incidents.")
         public ResponseEntity<com.incidentiq.dto.response.AiCoachingResponse> getAiCoachingAdvice(@PathVariable Long id) {
                 return ResponseEntity.ok(aiCoachingService.getCoachingAdvice(id));
+        }
+
+        /**
+         * Changes an incident's status through the lifecycle.
+         * Accessible to the assigned technician, managers, and admins.
+         * Broadcasts the change via WebSocket so all open viewers see it instantly.
+         */
+        @PatchMapping("/{id}/status")
+        @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN') or @authService.isAssignee(#id)")
+        @Operation(summary = "Change incident status", description = "Moves the incident to the next lifecycle status. Only the assigned technician, manager, or admin can call this. Change is broadcast via WebSocket to all open viewers.")
+        @ApiResponses({
+                @ApiResponse(responseCode = "200", description = "Status updated successfully"),
+                @ApiResponse(responseCode = "400", description = "Invalid status transition", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+                @ApiResponse(responseCode = "403", description = "Not authorized to change this incident's status")
+        })
+        public ResponseEntity<IncidentResponse> changeIncidentStatus(
+                @PathVariable Long id,
+                @Valid @RequestBody StatusChangeRequest request) {
+                IncidentResponse response = incidentService.changeStatus(id, request.getStatus());
+                return ResponseEntity.ok(response);
         }
 
         @GetMapping("/export/csv")

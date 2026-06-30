@@ -64,10 +64,9 @@ public class SlaAlertScheduler {
             notificationService.notifySlaWarning(
                     incident.getCreatedBy(), incident.getId(), incident.getTitle(), percentElapsed);
         }
-        notificationService.notifyManagers(
-                incident.getId(),
-                incident.getTitle(),
-                String.format("SLA Warning: Incident #%d ('%s') is at %d%% of its SLA window. Priority: %s",
-                        incident.getId(), incident.getTitle(), percentElapsed, incident.getPriority()));
+        String slaMessage = String.format("SLA Warning: Incident #%d ('%s') is at %d%% of its SLA window. Priority: %s",
+                incident.getId(), incident.getTitle(), percentElapsed, incident.getPriority());
+        notificationService.notifyManagers(incident.getId(), incident.getTitle(), slaMessage);
+        notificationService.notifyAdmins(incident.getId(), incident.getTitle(), slaMessage);
     }
 }

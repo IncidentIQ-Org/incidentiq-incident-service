@@ -48,10 +48,13 @@ public final class AiResponses {
     public static class IncidentAssist {
         private String improvedTitle;
         private String improvedDescription;
-        private String category;     // suggested IncidentCategory
-        private String priority;     // suggested IncidentPriority
+        private String category;            // suggested IncidentCategory
+        private String priority;            // suggested IncidentPriority
+        private String complexity;          // suggested Complexity (EASY/MEDIUM/HARD/COMPLEX)
+        private Integer complexityConfidence; // 0-100 confidence in the complexity suggestion
+        private String complexityReason;    // short "why" for the complexity call
         private List<String> tags;
-        private String rationale;    // one-line "why" for the suggestion
+        private String rationale;           // one-line "why" for the suggestion
         private AiMeta meta;
     }
 

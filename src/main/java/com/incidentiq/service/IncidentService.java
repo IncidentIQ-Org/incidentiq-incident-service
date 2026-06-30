@@ -98,4 +98,12 @@ public interface IncidentService {
      * Retrieves all incidents as a flat list for CSV export (no pagination).
      */
     java.util.List<IncidentResponse> getAllIncidentsForExport();
+
+    /**
+     * Changes the status of an incident through the lifecycle.
+     * Only the assigned technician, manager, or admin may call this.
+     * Validates the transition against IncidentStatus rules and broadcasts
+     * the change via WebSocket to all viewers of the incident.
+     */
+    IncidentResponse changeStatus(Long id, com.incidentiq.enums.IncidentStatus newStatus);
 }

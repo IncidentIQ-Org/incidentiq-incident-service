@@ -26,6 +26,9 @@ public final class IncidentMapper {
                 .description(request.getDescription())
                 .category(request.getCategory())
                 .priority(request.getPriority())
+                .complexity(request.getComplexity() != null
+                        ? request.getComplexity()
+                        : com.incidentiq.enums.Complexity.MEDIUM)
                 .status(IncidentStatus.OPEN)
                 .build();
     }
@@ -40,13 +43,18 @@ public final class IncidentMapper {
                 .description(incident.getDescription())
                 .category(incident.getCategory() != null ? incident.getCategory().name() : null)
                 .priority(incident.getPriority() != null ? incident.getPriority().name() : null)
+                .complexity(incident.getComplexity() != null ? incident.getComplexity().name() : null)
                 .status(incident.getStatus() != null ? incident.getStatus().name() : null)
                 .createdBy(incident.getCreatedBy())
                 .assignedTo(incident.getAssignedTo())
                 .createdAt(incident.getCreatedAt())
                 .updatedAt(incident.getUpdatedAt())
                 .dueDate(incident.getDueDate())
-                .slaBreached(incident.getDueDate() != null && incident.getDueDate().isBefore(java.time.LocalDateTime.now()) && incident.getStatus() != com.incidentiq.enums.IncidentStatus.CLOSED)
+                .slaBreached(Boolean.TRUE.equals(incident.getSlaMissed())
+                        || (incident.getDueDate() != null
+                            && incident.getDueDate().isBefore(java.time.LocalDateTime.now())
+                            && incident.getStatus() != com.incidentiq.enums.IncidentStatus.RESOLVED
+                            && incident.getStatus() != com.incidentiq.enums.IncidentStatus.CLOSED))
                 .tags(incident.getTags())
                 .rootCause(incident.getRootCause())
                 .resolutionSteps(incident.getResolutionSteps())

@@ -43,4 +43,10 @@ public class CreateIncidentRequest {
     private IncidentStatus status;
     private Long createdBy;
     private String tags;
+
+    /**
+     * Technical complexity. Optional — the AI assessment engine suggests a
+     * value on the creation screen; if omitted the backend defaults to MEDIUM.
+     */
+    private com.incidentiq.enums.Complexity complexity;
 }

@@ -41,6 +41,15 @@ public class Incident {
     @Column(nullable = false, length = 10)
     private IncidentPriority priority;
 
+    /**
+     * Technical complexity — independent of priority. Determined by the AI
+     * assessment engine on creation; defaults to MEDIUM if not supplied.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    @Builder.Default
+    private com.incidentiq.enums.Complexity complexity = com.incidentiq.enums.Complexity.MEDIUM;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default
@@ -122,7 +131,7 @@ public class Incident {
     @Builder.Default
     private Boolean slaAlertSent = false;
 
-    @OneToMany(fetch = FetchType.LAZY)
+    @OneToMany(fetch = FetchType.EAGER)
     @JoinColumn(name = "incident_id", referencedColumnName = "id", insertable = false, updatable = false)
     private java.util.List<IncidentAttachment> attachments;
 }
